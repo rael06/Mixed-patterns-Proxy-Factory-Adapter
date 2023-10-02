@@ -8,35 +8,47 @@ interface IErc721AbiFunctions {
   doOther(): void;
 }
 
-interface IErc721AbiAdapter extends IErc721AbiFunctions {
+interface IErc721AbiAdapter {
   readonly usableFunctions: Record<keyof IErc721AbiFunctions, boolean>;
+  readonly contract: Erc721BaseContract;
 }
 
-class Erc721AbiV1Adapter implements IErc721AbiAdapter {
-  public readonly usableFunctions = {
-    doSome: true,
-    doOther: false,
-  };
+abstract class BaseErc721AbiAdapter<T extends Erc721BaseContract>
+  implements IErc721AbiAdapter
+{
+  public constructor(
+    public contract: T,
+    public readonly usableFunctions: Record<keyof IErc721AbiFunctions, boolean>
+  ) {}
 
-  public constructor(private contract: Erc721AbiV1) {}
-
-  public async doSome(obj: { str: string }): Promise<string> {
-    return this.contract.doSome(obj);
+  public canUse<K extends keyof IErc721AbiFunctions>(
+    contractFunc: K
+  ): this is this & Pick<IErc721AbiFunctions, K> {
+    return !!this.usableFunctions[contractFunc];
   }
 
-  doOther(): void {
+  public useOrThrow<K extends keyof IErc721AbiFunctions>(
+    contractFunc: K
+  ): (
+    ...args: Parameters<IErc721AbiFunctions[K]>
+  ) => ReturnType<IErc721AbiFunctions[K]> {
+    if (this.canUse(contractFunc)) {
+      return (this[contractFunc] as Function).bind(this);
+    }
+
     throw new Error("Method not implemented.");
   }
 }
 
-class Erc721AbiV2Adapter implements IErc721AbiAdapter {
-  public readonly usableFunctions: Record<keyof IErc721AbiFunctions, boolean> =
-    {
+class Erc721AbiV1Adapter<
+  T extends Erc721AbiV1
+> extends BaseErc721AbiAdapter<T> {
+  public constructor(contract: T) {
+    super(contract, {
       doSome: true,
       doOther: false,
-    };
-
-  public constructor(private contract: Erc721AbiV2) {}
+    });
+  }
 
   public async doSome(obj: { str: string }): Promise<string> {
     return this.contract.doSome(obj);
@@ -47,14 +59,34 @@ class Erc721AbiV2Adapter implements IErc721AbiAdapter {
   }
 }
 
-class Erc721AbiV3Adapter implements IErc721AbiAdapter {
-  public readonly usableFunctions: Record<keyof IErc721AbiFunctions, boolean> =
-    {
+class Erc721AbiV2Adapter<
+  T extends Erc721AbiV2
+> extends BaseErc721AbiAdapter<T> {
+  public constructor(contract: T) {
+    super(contract, {
+      doSome: true,
+      doOther: false,
+    });
+  }
+
+  public async doSome(obj: { str: string }): Promise<string> {
+    return this.contract.doSome(obj);
+  }
+
+  doOther(): void {
+    throw new Error("Method not implemented.");
+  }
+}
+
+class Erc721AbiV3Adapter<
+  T extends Erc721AbiV3
+> extends BaseErc721AbiAdapter<T> {
+  public constructor(contract: T) {
+    super(contract, {
       doSome: true,
       doOther: true,
-    };
-
-  public constructor(private contract: Erc721AbiV3) {}
+    });
+  }
 
   public async doSome(obj: { str: string }): Promise<string> {
     return this.contract.renamedDoSome(obj);
@@ -65,14 +97,15 @@ class Erc721AbiV3Adapter implements IErc721AbiAdapter {
   }
 }
 
-class Erc721AbiV4Adapter implements IErc721AbiAdapter {
-  public readonly usableFunctions: Record<keyof IErc721AbiFunctions, boolean> =
-    {
+class Erc721AbiV4Adapter<
+  T extends Erc721AbiV4
+> extends BaseErc721AbiAdapter<T> {
+  public constructor(contract: T) {
+    super(contract, {
       doSome: true,
       doOther: false,
-    };
-
-  public constructor(private contract: Erc721AbiV4) {}
+    });
+  }
 
   public async doSome(obj: { str: string }): Promise<string> {
     return this.contract.renamedAgainDoSome(obj);
@@ -136,8 +169,10 @@ abstract class ContractFactory {
   }
 }
 
-abstract class ContractAdapterFactory {
-  public static build(contract: BaseContract): IErc721AbiAdapter {
+abstract class Erc721ContractAdapterFactory {
+  public static build<T extends Erc721BaseContract>(
+    contract: T
+  ): BaseErc721AbiAdapter<T> {
     if (contract instanceof Erc721AbiV1)
       return new Erc721AbiV1Adapter(contract);
     if (contract instanceof Erc721AbiV2)
@@ -151,47 +186,6 @@ abstract class ContractAdapterFactory {
   }
 }
 
-type NoMethods<T> = {
-  [K in keyof T]: never;
-};
-
-class Erc721ContractProxy {
-  public adapter: NoMethods<IErc721AbiAdapter> | Record<string, never> = {};
-  private readonly _adapter: IErc721AbiAdapter;
-
-  public constructor(adapter: IErc721AbiAdapter) {
-    this._adapter = adapter;
-  }
-
-  public canUse<K extends keyof IErc721AbiFunctions>(
-    contractFunc: K
-  ): this is this & {
-    adapter: IErc721AbiFunctions & NoMethods<Omit<IErc721AbiFunctions, K>>;
-  } {
-    this.adapter = this._adapter as unknown as IErc721AbiFunctions &
-      NoMethods<Omit<IErc721AbiFunctions, K>>;
-    return !!this._adapter.usableFunctions[contractFunc];
-  }
-
-  public useOrThrow<K extends keyof IErc721AbiFunctions>(
-    contractFunc: K
-  ): (
-    ...args: Parameters<IErc721AbiFunctions[K]>
-  ) => ReturnType<IErc721AbiFunctions[K]> {
-    if (this.canUse(contractFunc)) {
-      const value = (
-        this._adapter as unknown as IErc721AbiFunctions &
-          NoMethods<Omit<IErc721AbiFunctions, K>>
-      )[contractFunc];
-
-      const func = (value as Function).bind(this._adapter);
-      return func;
-    }
-
-    throw new Error("Method not implemented.");
-  }
-}
-
 export default class TryPatterns {
   public static async start() {
     const contracts = [
@@ -201,34 +195,38 @@ export default class TryPatterns {
       ContractFactory.build("v4"),
     ];
 
-    const erc721ContractProxies = contracts.map(
-      (contract) =>
-        new Erc721ContractProxy(ContractAdapterFactory.build(contract))
+    const erc721ContractAdapters = contracts.map((contract) =>
+      Erc721ContractAdapterFactory.build(contract)
     );
 
-    const erc721ContractProxy = erc721ContractProxies[3];
+    const erc721ContractAdapter = erc721ContractAdapters[2];
 
-    const canUseDoSome = erc721ContractProxy.canUse("doSome");
+    const canUseDoSome =
+      erc721ContractAdapter.canUse("doSome") &&
+      erc721ContractAdapter.canUse("doOther");
 
     if (canUseDoSome) {
       console.log(
-        await erc721ContractProxy.adapter.doSome({
+        await erc721ContractAdapter.doSome({
           str: "by adapter in canUse",
         })
       );
-      // erc721ContractProxy.adapter.doOther(); // TS Error Expected because type guard didn't checked doOther
+      erc721ContractAdapter.doOther(); // TS Error Expected because type guard didn't checked doOther
     }
-    // erc721ContractProxy.adapter.doSome({ str: "test" }); // TS Error Expected because we are out of type guard scope
+    // erc721ContractAdapter.doSome({ str: "test" }); // TS Error Expected because we are out of type guard scope
+    // erc721ContractAdapter.doOther(); // TS Error Expected because we are out of type guard scope
 
-    if (erc721ContractProxy.canUse("doOther")) {
-      erc721ContractProxy.adapter.doOther();
+    if (erc721ContractAdapter.canUse("doOther")) {
+      erc721ContractAdapter.doOther();
     }
 
     try {
       console.log(
-        await erc721ContractProxy.useOrThrow("doSome")({ str: "by useOrThrow" })
+        await erc721ContractAdapter.useOrThrow("doSome")({
+          str: "by useOrThrow",
+        })
       );
-      erc721ContractProxy.useOrThrow("doOther")();
+      erc721ContractAdapter.useOrThrow("doOther")();
     } catch (e: any) {
       console.log(e.message);
     }
