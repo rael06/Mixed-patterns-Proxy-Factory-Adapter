@@ -40,9 +40,10 @@ abstract class BaseErc721AbiAdapter<T extends Erc721BaseContract>
   }
 }
 
-class Erc721AbiV1Adapter<
-  T extends Erc721AbiV1
-> extends BaseErc721AbiAdapter<T> {
+class Erc721AbiV1Adapter<T extends Erc721AbiV1>
+  extends BaseErc721AbiAdapter<T>
+  implements IErc721AbiFunctions
+{
   public constructor(contract: T) {
     super(contract, {
       doSome: true,
@@ -59,9 +60,10 @@ class Erc721AbiV1Adapter<
   }
 }
 
-class Erc721AbiV2Adapter<
-  T extends Erc721AbiV2
-> extends BaseErc721AbiAdapter<T> {
+class Erc721AbiV2Adapter<T extends Erc721AbiV2>
+  extends BaseErc721AbiAdapter<T>
+  implements IErc721AbiFunctions
+{
   public constructor(contract: T) {
     super(contract, {
       doSome: true,
@@ -78,9 +80,10 @@ class Erc721AbiV2Adapter<
   }
 }
 
-class Erc721AbiV3Adapter<
-  T extends Erc721AbiV3
-> extends BaseErc721AbiAdapter<T> {
+class Erc721AbiV3Adapter<T extends Erc721AbiV3>
+  extends BaseErc721AbiAdapter<T>
+  implements IErc721AbiFunctions
+{
   public constructor(contract: T) {
     super(contract, {
       doSome: true,
@@ -97,9 +100,10 @@ class Erc721AbiV3Adapter<
   }
 }
 
-class Erc721AbiV4Adapter<
-  T extends Erc721AbiV4
-> extends BaseErc721AbiAdapter<T> {
+class Erc721AbiV4Adapter<T extends Erc721AbiV4>
+  extends BaseErc721AbiAdapter<T>
+  implements IErc721AbiFunctions
+{
   public constructor(contract: T) {
     super(contract, {
       doSome: true,
